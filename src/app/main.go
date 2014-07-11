@@ -28,7 +28,7 @@ func usage() {
     os.Exit(2)
 }
 
-type Redis struct {
+type RedisConfig struct {
     Host string
     Password string
     Db string
@@ -53,7 +53,7 @@ type Zinc struct {
 }
 
 type Config struct {
-    Redis Redis
+    Redis []RedisConfig
     Leveldb LeveldbConfig
     Manager Manager
     Log Log
@@ -66,12 +66,11 @@ func main() {
 
     args := flag.Args()
     if len(args) < 1 {
-        fmt.Println("config file is missing.")
-        os.Exit(1)
+        log.Panicf("config file is missing.")
     }
 
     var config Config
-    content, err := ioutil.ReadFile(args[1])
+    content, err := ioutil.ReadFile(args[0])
     if err != nil {
         panic(err)
     }
@@ -79,20 +78,25 @@ func main() {
         panic(err)
     }
     logfile := config.Log.File
-    host := config.Redis.Host
-    password := config.Redis.Password
-    tdb,_ := strconv.ParseInt(config.Redis.Db, 0, 0)
-    db := int(tdb)
-    events := config.Redis.Events
-    channel := config.Redis.Channel
     dbname := config.Leveldb.Dbname
     manager_addr := config.Manager.Addr
     zinc_addr := config.Zinc.Addr
 
+    var host, password, events, channel string
+    var db int
+    for i, value := range config.Redis{
+        redis_config := value
+        host = redis_config.Host
+        password = redis_config.Password
+        tdb,_ := strconv.ParseInt(redis_config.Db, 0, 0)
+        events = redis_config.Events
+        channel = redis_config.Channel
+        db = int(tdb)
+    }
+
     fp,err := os.OpenFile(logfile, os.O_RDWR | os.O_APPEND | os.O_CREATE, 0666)
     if err != nil {
-        fmt.Fprintf(os.Stderr, "open log file failed:%s", err)
-        os.Exit(1)
+        log.Panicf("open log file failed:%s", err)
     }
     defer fp.Close()
     log.SetOutput(io.MultiWriter(fp, os.Stderr))
